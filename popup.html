@@ -32,6 +32,60 @@
       width: 100%;
       padding: 10px;
       cursor: pointer;
+      border: none;
+      border-radius: 6px;
+      color: #ffffff;
+      font-weight: 700;
+      transition: background-color 0.2s ease, transform 0.2s ease;
+      margin-bottom: 8px;
+    }
+
+    button:hover:not(:disabled) {
+      transform: translateY(-1px);
+    }
+
+    button:disabled {
+      background-color: #c4c4c4;
+      cursor: not-allowed;
+      opacity: 0.85;
+    }
+
+    .button-primary {
+      background-color: #2563eb;
+    }
+
+    .button-secondary {
+      background-color: #16a34a;
+    }
+
+    #preview {
+      margin-top: 16px;
+      overflow-x: auto;
+      width: 100%;
+    }
+
+    #preview table {
+      min-width: 520px;
+      border-collapse: collapse;
+      margin-top: 8px;
+      font-size: 13px;
+    }
+
+    #preview th,
+    #preview td {
+      border: 1px solid #ccc;
+      padding: 6px 8px;
+      text-align: right;
+    }
+
+    #preview th {
+      background: #f3f3f3;
+      font-weight: bold;
+    }
+
+    #preview td:first-child,
+    #preview th:first-child {
+      text-align: left;
     }
 
     #status {
@@ -49,11 +103,6 @@
   </div>
 
   <div class="field">
-    <label>Token</label>
-    <div style="font-size: 13px; color: #555; line-height: 1.4;">Token được lấy tự động từ localStorage của trang <strong>https://fireant.vn</strong>.</div>
-  </div>
-
-  <div class="field">
     <label>Type</label>
     <select id="type">
       <option value="year">Year</option>
@@ -66,9 +115,11 @@
     <input id="count" type="number" value="6" />
   </div>
 
-  <button id="submitBtn">Submit</button>
+  <button id="submitBtn" class="button-primary">Submit</button>
+  <button id="downloadBtn" class="button-secondary" disabled>Download excel</button>
 
   <div id="status"></div>
+  <div id="preview"></div>
 
   <script src="exceljs.min.js"></script>
   <script src="popup.js"></script>

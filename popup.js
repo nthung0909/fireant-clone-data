@@ -2,7 +2,15 @@ const stockIDInput = document.getElementById("stockID");
 const typeInput = document.getElementById("type");
 const countInput = document.getElementById("count");
 const submitBtn = document.getElementById("submitBtn");
+const downloadBtn = document.getElementById("downloadBtn");
 const statusEl = document.getElementById("status");
+const previewContainer = document.getElementById("preview");
+
+let previewData = null;
+let previewStockID = null;
+let previewType = null;
+
+downloadBtn.disabled = true;
 
 submitBtn.addEventListener("click", async () => {
   try {
@@ -13,6 +21,12 @@ submitBtn.addEventListener("click", async () => {
     if (!stockID) {
       throw new Error("Thiếu StockID");
     }
+
+    previewData = null;
+    previewStockID = null;
+    previewType = null;
+    downloadBtn.disabled = true;
+    previewContainer.innerHTML = "";
 
     setStatus("Đang lấy token từ trang Fireant...");
     const token = await getAccessTokenFromPage();
@@ -29,16 +43,84 @@ submitBtn.addEventListener("click", async () => {
       throw new Error("Không có dữ liệu");
     }
 
-    setStatus("Đang tạo excel...");
+    previewData = data;
+    previewStockID = stockID;
+    previewType = type;
 
-    await generateExcel(data, stockID, type);
+    renderPreviewTable(data, type);
+    downloadBtn.disabled = false;
+    setStatus("Dữ liệu đã sẵn sàng. Kiểm tra bảng và nhấn Download excel để tải về.");
+  } catch (err) {
+    console.error(err);
+    downloadBtn.disabled = true;
+    setStatus(err.message);
+  }
+});
 
-    setStatus("Hoàn tất");
+downloadBtn.addEventListener("click", async () => {
+  try {
+    if (!previewData || !previewStockID || !previewType) {
+      throw new Error("Không có dữ liệu để tải xuống. Vui lòng nhấn Submit trước.");
+    }
+
+    setStatus("Đang tạo Excel và tải về...");
+    await generateExcel(previewData, previewStockID, previewType);
+    setStatus("Hoàn tất tải file Excel.");
   } catch (err) {
     console.error(err);
     setStatus(err.message);
   }
 });
+
+function renderPreviewTable(data, type) {
+  const sortedData = [...data].sort((a, b) => {
+    if (a.year !== b.year) {
+      return b.year - a.year;
+    }
+    return b.quarter - a.quarter;
+  });
+
+  const headers = sortedData.map((item) => {
+    return type === "quarter" ? `Q${item.quarter}/${item.year}` : `${item.year}`;
+  });
+
+  const metrics = [
+    { label: "EPS", key: "BasicEPS" },
+    { label: "BVPS", key: "BookValuePerShare" },
+    { label: "P/E", key: "PE" },
+    { label: "P/B", key: "PB" },
+    { label: "ROA", key: "ROA" },
+    { label: "ROE", key: "ROE" },
+  ];
+
+  let html = "<table><thead><tr><th>Chỉ số</th>";
+  for (const header of headers) {
+    html += `<th>${header}</th>`;
+  }
+  html += "</tr></thead><tbody>";
+
+  for (const metric of metrics) {
+    html += `<tr><td>${metric.label}</td>`;
+    for (const item of sortedData) {
+      const value = item.financialValues?.[metric.key];
+      html += `<td>${formatPreviewValue(value)}</td>`;
+    }
+    html += "</tr>";
+  }
+
+  html += "</tbody></table>";
+  previewContainer.innerHTML = html;
+}
+
+function formatPreviewValue(value) {
+  if (value === null || value === undefined) {
+    return "-";
+  }
+  if (typeof value === "number") {
+    return value.toLocaleString(undefined, { maximumFractionDigits: 2 });
+  }
+  return String(value);
+}
 
 function setStatus(message) {
   statusEl.textContent = message;
@@ -98,6 +180,12 @@ async function fetchFinancialData({ stockID, token, type, count }) {
   );
 
   if (!response.ok) {
+    if (response.status === 401) {
+      await chrome.tabs.create({ url: "https://fireant.vn/" });
+      throw new Error(
+        "API trả về 401. Mở tab https://fireant.vn/ để đăng nhập lại và tạo token mới."
+      );
+    }
     throw new Error(`API Error: ${response.status}`);
   }
 
@@ -153,10 +241,10 @@ async function generateExcel(data, stockID, type) {
 
   const sortedData = [...data].sort((a, b) => {
     if (a.year !== b.year) {
-      return a.year - b.year;
+      return b.year - a.year;
     }
 
-    return a.quarter - b.quarter;
+    return b.quarter - a.quarter;
   });
 
   const isQuarter = type === "quarter";
