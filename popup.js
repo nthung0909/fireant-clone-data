@@ -4,6 +4,7 @@ const countInput = document.getElementById("count");
 const submitBtn = document.getElementById("submitBtn");
 const downloadBtn = document.getElementById("downloadBtn");
 const statusEl = document.getElementById("status");
+const previewNav = document.getElementById("previewNav");
 const previewContainer = document.getElementById("preview");
 
 let previewData = null;
@@ -27,6 +28,8 @@ submitBtn.addEventListener("click", async () => {
     previewType = null;
     downloadBtn.disabled = true;
     previewContainer.innerHTML = "";
+    previewNav.innerHTML = "";
+    previewNav.hidden = true;
 
     setStatus("Đang lấy token từ trang Fireant...");
     const token = await getAccessTokenFromPage();
@@ -49,6 +52,7 @@ submitBtn.addEventListener("click", async () => {
 
     renderPreviewTable(data, type);
     downloadBtn.disabled = false;
+    previewNav.hidden = false;
     setStatus("Dữ liệu đã sẵn sàng. Kiểm tra bảng và nhấn Download excel để tải về.");
   } catch (err) {
     console.error(err);
@@ -72,6 +76,85 @@ downloadBtn.addEventListener("click", async () => {
   }
 });
 
+function getPreviewSections() {
+  return [
+    {
+      title: "Chỉ số cơ bản",
+      rows: [
+        { label: "EPS", key: "BasicEPS" },
+        { label: "BVPS", key: "BookValuePerShare" },
+        { label: "P/E", key: "PE" },
+        { label: "P/B", key: "PB" },
+        { label: "ROA", key: "ROA" },
+        { label: "ROE", key: "ROE" },
+        { label: "ROIC", key: "ROIC" },
+        {
+          label: "Nợ vay/VCSH",
+          getValue: (item) => {
+            const f = item.financialValues || {};
+            const debt = (f.ShortTermInterestBearingDebt || 0) + (f.LongTermInterestBearingDebt || 0);
+            const equity = f.StockHolderEquity || 1;
+            return debt / equity;
+          },
+        },
+      ],
+    },
+    {
+      title: "Kết quả kinh doanh",
+      rows: [
+        { label: "Doanh thu thuần", key: "NetSale" },
+        { label: "Giá vốn hàng bán", key: "CostOfGoodSold" },
+        { label: "Lợi nhuận gộp", key: "GrossProfit" },
+        {
+          label: "LN HĐTC & Cty LDLK",
+          getValue: (item) => {
+            const f = item.financialValues || {};
+            return (f.ProfitFromFinancialActivity || 0) + (f.ProfitFromAssociate || 0);
+          },
+        },
+        { label: "LN khác", key: "OtherProfit" },
+        { label: "LN trước thuế", key: "ProfitBeforeTax" },
+        { label: "LN sau thuế", key: "ProfitAfterTax" },
+        { label: "Lợi nhuận sau thuế công ty mẹ", key: "ParentCompanyShareholderProfitAfterTax" },
+        {
+          label: "Lợi ích CĐ không kiểm soát",
+          getValue: (item) => {
+            const f = item.financialValues || {};
+            return (f.ProfitAfterTax || 0) - (f.ParentCompanyShareholderProfitAfterTax || 0);
+          },
+        },
+        { label: "Lợi nhuận ròng", key: "ParentCompanyShareholderProfitAfterTax" },
+      ],
+    },
+    {
+      title: "Tài sản và VCSH",
+      rows: [
+        { label: "Tổng nợ", key: "TotalDebt" },
+        { label: "Nợ ngắn hạn", key: "TotalShortTermDebt" },
+        { label: "Nợ dài hạn", key: "TotalLongTermDebt" },
+        { label: "Vốn chủ sở hữu", key: "StockHolderEquity" },
+        { label: "Tổng giá trị tồn kho", key: "TotalInventory" },
+        { label: "Tồn kho nguyên vật liệu", getValue: () => null },
+        { label: "Công cụ, dụng cụ", getValue: () => null },
+        { label: "Chi phí SXKD dở dang", getValue: () => null },
+        { label: "Thành phẩm", getValue: () => null },
+        { label: "Hàng hoá", getValue: () => null },
+        { label: "Hàng gửi bán", getValue: () => null },
+      ],
+    },
+    {
+      title: "Lưu chuyển tiền tệ",
+      rows: [
+        { label: "Lưu chuyển tiền thuần từ HĐ Kinh doanh", key: "CashflowFromOperatingActivity" },
+        { label: "Lưu chuyển tiền thuần từ HĐ Tài chính", key: "CashflowFromFinancingActivity" },
+        { label: "Lưu chuyển tiền thuần từ HĐ Đầu tư", key: "CashflowFromInvestingActivity" },
+        { label: "Tiền mặt", key: "Cash" },
+        { label: "Tiền và tương đương tiền cuối kỳ", key: "CashAndCashEquivalentAtTheEndOfPeriod" },
+      ],
+    },
+  ];
+}
+
 function renderPreviewTable(data, type) {
   const sortedData = [...data].sort((a, b) => {
     if (a.year !== b.year) {
@@ -84,37 +167,44 @@ function renderPreviewTable(data, type) {
     return type === "quarter" ? `Q${item.quarter}/${item.year}` : `${item.year}`;
   });
 
-  const metrics = [
-    { label: "EPS", key: "BasicEPS" },
-    { label: "BVPS", key: "BookValuePerShare" },
-    { label: "P/E", key: "PE" },
-    { label: "P/B", key: "PB" },
-    { label: "ROA", key: "ROA" },
-    { label: "ROE", key: "ROE" },
-  ];
+  const sections = getPreviewSections();
+  let html = "";
 
-  let html = "<table><thead><tr><th>Chỉ số</th>";
-  for (const header of headers) {
-    html += `<th>${header}</th>`;
-  }
-  html += "</tr></thead><tbody>";
+  previewNav.innerHTML = sections
+    .map((section) => {
+      const sectionId = `preview-${section.title.toLowerCase().replace(/[^a-z0-9]+/gi, "-")}`;
+      return `<button type="button" class="button-tertiary" data-target="${sectionId}">${section.title}</button>`;
+    })
+    .join("");
 
-  for (const metric of metrics) {
-    html += `<tr><td>${metric.label}</td>`;
-    for (const item of sortedData) {
-      const value = item.financialValues?.[metric.key];
-      html += `<td>${formatPreviewValue(value)}</td>`;
+  for (const section of sections) {
+    const sectionId = `preview-${section.title.toLowerCase().replace(/[^a-z0-9]+/gi, "-")}`;
+    html += `<div class="preview-section" id="${sectionId}"><div class="preview-title">${section.title}</div><table><thead><tr><th>Chỉ số</th>`;
+    for (const header of headers) {
+      html += `<th>${header}</th>`;
     }
-    html += "</tr>";
+    html += `</tr></thead><tbody>`;
+
+    for (const metric of section.rows) {
+      html += `<tr><td>${metric.label}</td>`;
+      for (const item of sortedData) {
+        const value = metric.getValue
+          ? metric.getValue(item)
+          : item.financialValues?.[metric.key];
+        html += `<td>${formatPreviewValue(value)}</td>`;
+      }
+      html += `</tr>`;
+    }
+
+    html += `</tbody></table></div>`;
   }
 
-  html += "</tbody></table>";
   previewContainer.innerHTML = html;
 }
 
 function formatPreviewValue(value) {
   if (value === null || value === undefined) {
-    return "-";
+    return "";
   }
   if (typeof value === "number") {
     return value.toLocaleString(undefined, { maximumFractionDigits: 2 });
@@ -125,6 +215,19 @@ function formatPreviewValue(value) {
 function setStatus(message) {
   statusEl.textContent = message;
 }
+
+previewNav.addEventListener("click", (event) => {
+  const button = event.target.closest("button[data-target]");
+  if (!button) {
+    return;
+  }
+
+  const targetId = button.dataset.target;
+  const targetSection = document.getElementById(targetId);
+  if (targetSection) {
+    targetSection.scrollIntoView({ behavior: "smooth", block: "start" });
+  }
+});
 
 async function getAccessTokenFromPage() {
   const tabs = await chrome.tabs.query({ url: ["https://fireant.vn/*", "https://www.fireant.vn/*"] });
@@ -420,6 +523,10 @@ async function generateExcel(data, stockID, type) {
         getValue: (f) => f.CashflowFromInvestingActivity,
       },
       {
+        label: "Tiền mặt",
+        getValue: (f) => f.Cash,
+      },
+      {
         label: "Tiền và tương đương tiền cuối kỳ",
         getValue: (f) => f.CashAndCashEquivalentAtTheEndOfPeriod,
       },
@@ -437,7 +544,7 @@ async function generateExcel(data, stockID, type) {
 
   const url = URL.createObjectURL(blob);
 
-  const fileName = `[${stockID}-${type}] Phân tích cơ bản.xlsx`;
+  const fileName = `[${stockID}] Phân tích cơ bản.xlsx`;
 
   chrome.downloads.download({
     url,

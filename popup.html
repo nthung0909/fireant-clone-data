@@ -58,10 +58,42 @@
       background-color: #16a34a;
     }
 
+    .button-tertiary {
+      background-color: #64748b;
+    }
+
+    .preview-nav {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+      margin-top: 8px;
+    }
+
+    .preview-nav button {
+      width: auto;
+      flex: 1;
+      min-width: 120px;
+      padding: 8px 10px;
+      font-size: 12px;
+      margin-bottom: 0;
+    }
+
     #preview {
       margin-top: 16px;
       overflow-x: auto;
+      overflow-y: auto;
+      max-height: 260px;
       width: 100%;
+    }
+
+    .preview-section {
+      margin-bottom: 18px;
+    }
+
+    .preview-title {
+      font-size: 13px;
+      font-weight: 700;
+      margin-bottom: 6px;
     }
 
     #preview table {
@@ -119,6 +151,7 @@
   <button id="downloadBtn" class="button-secondary" disabled>Download excel</button>
 
   <div id="status"></div>
+  <div id="previewNav" class="preview-nav" hidden></div>
   <div id="preview"></div>
 
   <script src="exceljs.min.js"></script>
