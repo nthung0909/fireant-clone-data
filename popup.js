@@ -437,7 +437,7 @@ async function generateExcel(data, stockID, type) {
 
   const url = URL.createObjectURL(blob);
 
-  const fileName = `${stockID}-${type}.xlsx`;
+  const fileName = `[${stockID}-${type}] Phân tích cơ bản.xlsx`;
 
   chrome.downloads.download({
     url,
