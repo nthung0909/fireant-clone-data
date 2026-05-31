@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Fireant Excel</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      width: 350px;
+      padding: 16px;
+    }
+
+    .field {
+      margin-bottom: 12px;
+    }
+
+    label {
+      display: block;
+      margin-bottom: 4px;
+      font-weight: bold;
+    }
+
+    input,
+    select {
+      width: 100%;
+      padding: 8px;
+      box-sizing: border-box;
+    }
+
+    button {
+      width: 100%;
+      padding: 10px;
+      cursor: pointer;
+    }
+
+    #status {
+      margin-top: 12px;
+      font-size: 13px;
+      white-space: pre-wrap;
+    }
+  </style>
+</head>
+<body>
+
+  <div class="field">
+    <label>StockID</label>
+    <input id="stockID" value="VNM" />
+  </div>
+
+  <div class="field">
+    <label>Token</label>
+    <div style="font-size: 13px; color: #555; line-height: 1.4;">Token được lấy tự động từ localStorage của trang <strong>https://fireant.vn</strong>.</div>
+  </div>
+
+  <div class="field">
+    <label>Type</label>
+    <select id="type">
+      <option value="year">Year</option>
+      <option value="quarter">Quarter</option>
+    </select>
+  </div>
+
+  <div class="field">
+    <label>Count</label>
+    <input id="count" type="number" value="6" />
+  </div>
+
+  <button id="submitBtn">Submit</button>
+
+  <div id="status"></div>
+
+  <script src="exceljs.min.js"></script>
+  <script src="popup.js"></script>
+</body>
+</html>

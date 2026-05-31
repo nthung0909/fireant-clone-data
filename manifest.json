@@ -1,0 +1,17 @@
+{
+  "manifest_version": 3,
+  "name": "Financial Excel Generator",
+  "version": "1.0.0",
+  "action": {
+    "default_popup": "popup.html"
+  },
+  "permissions": [
+    "downloads",
+    "scripting",
+    "tabs"
+  ],
+  "host_permissions": [
+    "https://*.fireant.vn/*",
+    "https://restv2.fireant.vn/*"
+  ]
+}
