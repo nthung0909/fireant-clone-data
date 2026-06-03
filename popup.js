@@ -10,6 +10,7 @@ const previewContainer = document.getElementById("preview");
 let previewData = null;
 let previewStockID = null;
 let previewType = null;
+let previewIsBank = false;
 
 downloadBtn.disabled = true;
 
@@ -42,6 +43,7 @@ submitBtn.addEventListener("click", async () => {
       count,
     });
 
+
     if (!Array.isArray(data) || data.length === 0) {
       throw new Error("Không có dữ liệu");
     }
@@ -49,8 +51,9 @@ submitBtn.addEventListener("click", async () => {
     previewData = data;
     previewStockID = stockID;
     previewType = type;
+    previewIsBank = data[0]?.companyType === "Bank";
 
-    renderPreviewTable(data, type);
+    renderPreviewTable(data, type, previewIsBank);
     downloadBtn.disabled = false;
     previewNav.hidden = false;
     setStatus("Dữ liệu đã sẵn sàng. Kiểm tra bảng và nhấn Download excel để tải về.");
@@ -68,7 +71,7 @@ downloadBtn.addEventListener("click", async () => {
     }
 
     setStatus("Đang tạo Excel và tải về...");
-    await generateExcel(previewData, previewStockID, previewType);
+    await generateExcel(previewData, previewStockID, previewType, previewIsBank);
     setStatus("Hoàn tất tải file Excel.");
   } catch (err) {
     console.error(err);
@@ -76,28 +79,39 @@ downloadBtn.addEventListener("click", async () => {
   }
 });
 
-function getPreviewSections() {
+function getPreviewSections(isBank) {
+  const basicRows = [
+    { label: "EPS", key: "BasicEPS" },
+    { label: "BVPS", key: "BookValuePerShare" },
+    { label: "P/E", key: "PE" },
+    { label: "P/B", key: "PB" },
+    { label: "ROA", key: "ROA" },
+    { label: "ROE", key: "ROE" },
+    { label: "ROIC", key: "ROIC" },
+    {
+      label: "Nợ vay/VCSH",
+      getValue: (item) => {
+        const f = item.financialValues || {};
+        const debt = (f.ShortTermInterestBearingDebt || 0) + (f.LongTermInterestBearingDebt || 0);
+        const equity = f.StockHolderEquity || 1;
+        return debt / equity;
+      },
+    },
+  ]; 
+
+  if (isBank) {
+    basicRows.push(
+      { label: "NII", key: "NetInterestIncome" },
+      { label: "NIM", key: "LoanlossReservesToNPL" },
+      { label: "CIR", key: "CIR" },
+      { label: "NPL", key: "NPLToLoan" }
+    );
+  }
+
   return [
     {
       title: "Chỉ số cơ bản",
-      rows: [
-        { label: "EPS", key: "BasicEPS" },
-        { label: "BVPS", key: "BookValuePerShare" },
-        { label: "P/E", key: "PE" },
-        { label: "P/B", key: "PB" },
-        { label: "ROA", key: "ROA" },
-        { label: "ROE", key: "ROE" },
-        { label: "ROIC", key: "ROIC" },
-        {
-          label: "Nợ vay/VCSH",
-          getValue: (item) => {
-            const f = item.financialValues || {};
-            const debt = (f.ShortTermInterestBearingDebt || 0) + (f.LongTermInterestBearingDebt || 0);
-            const equity = f.StockHolderEquity || 1;
-            return debt / equity;
-          },
-        },
-      ],
+      rows: basicRows,
     },
     {
       title: "Kết quả kinh doanh",
@@ -155,7 +169,7 @@ function getPreviewSections() {
   ];
 }
 
-function renderPreviewTable(data, type) {
+function renderPreviewTable(data, type, isBank) {
   const sortedData = [...data].sort((a, b) => {
     if (a.year !== b.year) {
       return b.year - a.year;
@@ -167,7 +181,7 @@ function renderPreviewTable(data, type) {
     return type === "quarter" ? `Q${item.quarter}/${item.year}` : `${item.year}`;
   });
 
-  const sections = getPreviewSections();
+  const sections = getPreviewSections(isBank);
   let html = "";
 
   previewNav.innerHTML = sections
@@ -206,9 +220,15 @@ function formatPreviewValue(value) {
   if (value === null || value === undefined) {
     return "";
   }
-  if (typeof value === "number") {
-    return value.toLocaleString(undefined, { maximumFractionDigits: 2 });
+
+  const num = Number(value);
+  if (Number.isFinite(num)) {
+    return num.toLocaleString("en-US", {
+      maximumFractionDigits: 2,
+      minimumFractionDigits: 0,
+    });
   }
+
   return String(value);
 }
 
@@ -333,13 +353,13 @@ function createSheet(workbook, name, sortedData, rowsConfig, isQuarter) {
       if (colNumber === 1) return;
 
       if (typeof cell.value === "number") {
-        cell.numFmt = "#,##0.00";
+        cell.numFmt = "#,##0.0#";
       }
     });
   });
 }
 
-async function generateExcel(data, stockID, type) {
+async function generateExcel(data, stockID, type, isBank) {
   const workbook = new ExcelJS.Workbook();
 
   const sortedData = [...data].sort((a, b) => {
@@ -352,50 +372,61 @@ async function generateExcel(data, stockID, type) {
 
   const isQuarter = type === "quarter";
 
+  const basicRows = [
+    {
+      label: "EPS",
+      getValue: (f) => f.BasicEPS,
+    },
+    {
+      label: "BVPS",
+      getValue: (f) => f.BookValuePerShare,
+    },
+    {
+      label: "P/E",
+      getValue: (f) => f.PE,
+    },
+    {
+      label: "P/B",
+      getValue: (f) => f.PB,
+    },
+    {
+      label: "ROA",
+      getValue: (f) => f.ROA,
+    },
+    {
+      label: "ROE",
+      getValue: (f) => f.ROE,
+    },
+    {
+      label: "ROIC",
+      getValue: (f) => f.ROIC,
+    },
+    {
+      label: "Nợ vay/VCSH",
+      getValue: (f) => {
+        const debt =
+          (f.ShortTermInterestBearingDebt || 0) +
+          (f.LongTermInterestBearingDebt || 0);
+
+        return debt / (f.StockHolderEquity || 1);
+      },
+    },
+  ]; 
+
+  if (isBank) {
+    basicRows.push(
+      { label: "NII", getValue: (f) => f.NetInterestIncome },
+      { label: "NIM", getValue: (f) => f.LoanlossReservesToNPL },
+      { label: "CIR", getValue: (f) => f.CIR },
+      { label: "NPL", getValue: (f) => f.NPLToLoan }
+    );
+  }
+
   createSheet(
     workbook,
     "Chỉ số cơ bản",
     sortedData,
-    [
-      {
-        label: "EPS",
-        getValue: (f) => f.BasicEPS,
-      },
-      {
-        label: "BVPS",
-        getValue: (f) => f.BookValuePerShare,
-      },
-      {
-        label: "P/E",
-        getValue: (f) => f.PE,
-      },
-      {
-        label: "P/B",
-        getValue: (f) => f.PB,
-      },
-      {
-        label: "ROA",
-        getValue: (f) => f.ROA,
-      },
-      {
-        label: "ROE",
-        getValue: (f) => f.ROE,
-      },
-      {
-        label: "ROIC",
-        getValue: (f) => f.ROIC,
-      },
-      {
-        label: "Nợ vay/VCSH",
-        getValue: (f) => {
-          const debt =
-            (f.ShortTermInterestBearingDebt || 0) +
-            (f.LongTermInterestBearingDebt || 0);
-
-          return debt / (f.StockHolderEquity || 1);
-        },
-      },
-    ],
+    basicRows,
     isQuarter
   );
 
