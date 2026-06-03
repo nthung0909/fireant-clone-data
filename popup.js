@@ -85,9 +85,9 @@ function getPreviewSections(isBank) {
     { label: "BVPS", key: "BookValuePerShare" },
     { label: "P/E", key: "PE" },
     { label: "P/B", key: "PB" },
-    { label: "ROA", key: "ROA" },
-    { label: "ROE", key: "ROE" },
-    { label: "ROIC", key: "ROIC" },
+    { label: "ROA", key: "ROA", isPercent: true },
+    { label: "ROE", key: "ROE", isPercent: true },
+    { label: "ROIC", key: "ROIC", isPercent: true },
     {
       label: "Nợ vay/VCSH",
       getValue: (item) => {
@@ -102,9 +102,9 @@ function getPreviewSections(isBank) {
   if (isBank) {
     basicRows.push(
       { label: "NII", key: "NetInterestIncome" },
-      { label: "NIM", key: "LoanlossReservesToNPL" },
-      { label: "CIR", key: "CIR" },
-      { label: "NPL", key: "NPLToLoan" }
+      { label: "NIM", key: "NIM", isPercent: true },
+      { label: "CIR", key: "CIR", isPercent: true },
+      { label: "NPL", key: "NPLToLoan", isPercent: true }
     );
   }
 
@@ -146,6 +146,15 @@ function getPreviewSections(isBank) {
         { label: "Tổng nợ", key: "TotalDebt" },
         { label: "Nợ ngắn hạn", key: "TotalShortTermDebt" },
         { label: "Nợ dài hạn", key: "TotalLongTermDebt" },
+        ...(isBank
+          ? [
+              { label: "Nợ nhóm 1", key: "StandardDebt" },
+              { label: "Nợ nhóm 2", key: "WatchlistDebt" },
+              { label: "Nợ nhóm 3", key: "SubstandardDebt" },
+              { label: "Nợ nhóm 4", key: "DoubtfulDebt" },
+              { label: "Nợ nhóm 5", key: "BadDebt" },
+            ]
+          : []),
         { label: "Vốn chủ sở hữu", key: "StockHolderEquity" },
         { label: "Tổng giá trị tồn kho", key: "TotalInventory" },
         { label: "Tồn kho nguyên vật liệu", getValue: () => null },
@@ -205,7 +214,7 @@ function renderPreviewTable(data, type, isBank) {
         const value = metric.getValue
           ? metric.getValue(item)
           : item.financialValues?.[metric.key];
-        html += `<td>${formatPreviewValue(value)}</td>`;
+        html += `<td>${formatPreviewValue(value, metric.isPercent)}</td>`;
       }
       html += `</tr>`;
     }
@@ -216,13 +225,21 @@ function renderPreviewTable(data, type, isBank) {
   previewContainer.innerHTML = html;
 }
 
-function formatPreviewValue(value) {
+function formatPreviewValue(value, isPercent) {
   if (value === null || value === undefined) {
     return "";
   }
 
   const num = Number(value);
   if (Number.isFinite(num)) {
+    if (isPercent) {
+      const percentValue = Math.abs(num) <= 1 ? num * 100 : num;
+      return `${percentValue.toLocaleString("en-US", {
+        maximumFractionDigits: 2,
+        minimumFractionDigits: 0,
+      })}%`;
+    }
+
     return num.toLocaleString("en-US", {
       maximumFractionDigits: 2,
       minimumFractionDigits: 0,
@@ -332,10 +349,23 @@ function createSheet(workbook, name, sortedData, rowsConfig, isQuarter) {
     const row = [rowConfig.label];
 
     sortedData.forEach((item) => {
-      row.push(rowConfig.getValue(item.financialValues));
+      let value = rowConfig.getValue(item.financialValues);
+      if (rowConfig.isPercent && Number.isFinite(Number(value))) {
+        const numValue = Number(value);
+        value = Math.abs(numValue) <= 1 ? numValue : numValue / 100;
+      }
+      row.push(value);
     });
 
-    sheet.addRow(row);
+    const addedRow = sheet.addRow(row);
+    if (rowConfig.isPercent) {
+      addedRow.eachCell((cell, colNumber) => {
+        if (colNumber === 1) return;
+        if (typeof cell.value === "number") {
+          cell.numFmt = "0.00%";
+        }
+      });
+    }
   });
 
   sheet.columns.forEach((col, index) => {
@@ -351,6 +381,7 @@ function createSheet(workbook, name, sortedData, rowsConfig, isQuarter) {
 
     row.eachCell((cell, colNumber) => {
       if (colNumber === 1) return;
+      if (cell.numFmt) return;
 
       if (typeof cell.value === "number") {
         cell.numFmt = "#,##0.0#";
@@ -416,7 +447,7 @@ async function generateExcel(data, stockID, type, isBank) {
   if (isBank) {
     basicRows.push(
       { label: "NII", getValue: (f) => f.NetInterestIncome },
-      { label: "NIM", getValue: (f) => f.LoanlossReservesToNPL },
+      { label: "NIM", getValue: (f) => f.NIM },
       { label: "CIR", getValue: (f) => f.CIR },
       { label: "NPL", getValue: (f) => f.NPLToLoan }
     );
@@ -483,56 +514,86 @@ async function generateExcel(data, stockID, type, isBank) {
     isQuarter
   );
 
+  const assetRows = [
+    {
+      label: "Tổng nợ",
+      getValue: (f) => f.TotalDebt,
+    },
+    {
+      label: "Nợ ngắn hạn",
+      getValue: (f) => f.TotalShortTermDebt,
+    },
+    {
+      label: "Nợ dài hạn",
+      getValue: (f) => f.TotalLongTermDebt,
+    },
+  ];
+
+  if (isBank) {
+    assetRows.push(
+      {
+        label: "Nợ nhóm 1",
+        getValue: (f) => f.StandardDebt,
+      },
+      {
+        label: "Nợ nhóm 2",
+        getValue: (f) => f.WatchlistDebt,
+      },
+      {
+        label: "Nợ nhóm 3",
+        getValue: (f) => f.SubstandardDebt,
+      },
+      {
+        label: "Nợ nhóm 4",
+        getValue: (f) => f.DoubtfulDebt,
+      },
+      {
+        label: "Nợ nhóm 5",
+        getValue: (f) => f.BadDebt,
+      }
+    );
+  }
+
+  assetRows.push(
+    {
+      label: "Vốn chủ sở hữu",
+      getValue: (f) => f.StockHolderEquity,
+    },
+    {
+      label: "Tổng giá trị tồn kho",
+      getValue: (f) => f.TotalInventory,
+    },
+    {
+      label: "Tồn kho nguyên vật liệu",
+      getValue: () => null,
+    },
+    {
+      label: "Công cụ, dụng cụ",
+      getValue: () => null,
+    },
+    {
+      label: "Chi phí SXKD dở dang",
+      getValue: () => null,
+    },
+    {
+      label: "Thành phẩm",
+      getValue: () => null,
+    },
+    {
+      label: "Hàng hoá",
+      getValue: () => null,
+    },
+    {
+      label: "Hàng gửi bán",
+      getValue: () => null,
+    },
+  );
+
   createSheet(
     workbook,
     "Tài sản và VCSH",
     sortedData,
-    [
-      {
-        label: "Tổng nợ",
-        getValue: (f) => f.TotalDebt,
-      },
-      {
-        label: "Nợ ngắn hạn",
-        getValue: (f) => f.TotalShortTermDebt,
-      },
-      {
-        label: "Nợ dài hạn",
-        getValue: (f) => f.TotalLongTermDebt,
-      },
-      {
-        label: "Vốn chủ sở hữu",
-        getValue: (f) => f.StockHolderEquity,
-      },
-      {
-        label: "Tổng giá trị tồn kho",
-        getValue: (f) => f.TotalInventory,
-      },
-      {
-        label: "Tồn kho nguyên vật liệu",
-        getValue: () => null,
-      },
-      {
-        label: "Công cụ, dụng cụ",
-        getValue: () => null,
-      },
-      {
-        label: "Chi phí SXKD dở dang",
-        getValue: () => null,
-      },
-      {
-        label: "Thành phẩm",
-        getValue: () => null,
-      },
-      {
-        label: "Hàng hoá",
-        getValue: () => null,
-      },
-      {
-        label: "Hàng gửi bán",
-        getValue: () => null,
-      },
-    ],
+    assetRows,
     isQuarter
   );
 
