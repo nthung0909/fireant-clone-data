@@ -100,6 +100,22 @@ function getPreviewSections(isBank) {
         return debt / (equity || 1);
       },
     },
+    { label: "CAGR Doanh thu 3 năm", getValue: (item) => (item.financialValues || {}).SaleGrowth_03Yr },
+    { label: "CAGR LNST 3 năm", getValue: (item) => {
+      const f = item.financialValues || {};
+      return f.ProfitAfterTaxGrowth_03Yr ?? f.ProfitGrowth_03Yr;
+    }},
+    { label: "CAGR EPS 3 năm", getValue: (item) => (item.financialValues || {}).BasicEPSGrowth_03Yr },
+    { label: "CAGR Tài sản 3 năm", getValue: (item) => (item.financialValues || {}).TotalAssetGrowth_03Yr },
+    { label: "CAGR Vốn chủ 3 năm", getValue: (item) => (item.financialValues || {}).EquityGrowth_03Yr },
+    { label: "Tăng trưởng tín dụng", getValue: (item, idx, all) => {
+      const f = item.financialValues || {};
+      const currentLoan = Number(f.CustomerLoan ?? f.CustomerLoans ?? 0);
+      const prev = all && all[idx + 1];
+      const prevLoan = Number(prev?.financialValues?.CustomerLoan ?? prev?.financialValues?.CustomerLoans ?? 0);
+      if (!prevLoan) return null;
+      return (currentLoan - prevLoan) / prevLoan;
+    }},
     {
       label: "Tổng nợ/Tổng tài sản",
       getValue: (item) => {
@@ -243,9 +259,10 @@ function renderPreviewTable(data, type, isBank) {
         continue;
       }
       html += `<tr><td>${metric.label}</td>`;
-      for (const item of sortedData) {
+      for (let i = 0; i < sortedData.length; i++) {
+        const item = sortedData[i];
         let value = metric.getValue
-          ? metric.getValue(item)
+          ? metric.getValue(item, i, sortedData)
           : item.financialValues?.[metric.key];
       if (metric.scale && Number.isFinite(Number(value))) {
         value = Number(value) / metric.scale;
@@ -387,8 +404,10 @@ function createSheet(workbook, name, sortedData, rowsConfig, isQuarter, options 
   rowsConfig.forEach((rowConfig) => {
     const row = [rowConfig.label];
 
-    sortedData.forEach((item) => {
-      const rawValue = rowConfig.getValue(item.financialValues);
+    sortedData.forEach((item, idx) => {
+      const rawValue = rowConfig.getValue
+        ? rowConfig.getValue(item.financialValues, idx, sortedData)
+        : item.financialValues?.[rowConfig.key];
       let value = rawValue;
       const numericValue = Number(rawValue);
       if (Number.isFinite(numericValue)) {
@@ -477,6 +496,24 @@ async function generateExcel(data, stockID, type, isBank) {
       label: "ROIC",
       getValue: (f) => f.ROIC,
       isPercent: true,
+    },
+    { label: "CAGR Doanh thu 3 năm", getValue: (f) => f.SaleGrowth_03Yr },
+    {
+      label: "CAGR LNST 3 năm",
+      getValue: (f) => f.ProfitAfterTaxGrowth_03Yr ?? f.ProfitGrowth_03Yr,
+    },
+    { label: "CAGR EPS 3 năm", getValue: (f) => f.BasicEPSGrowth_03Yr },
+    { label: "CAGR Tài sản 3 năm", getValue: (f) => f.TotalAssetGrowth_03Yr },
+    { label: "CAGR Vốn chủ 3 năm", getValue: (f) => f.EquityGrowth_03Yr },
+    {
+      label: "Tăng trưởng tín dụng",
+      getValue: (f, idx, all) => {
+        const currentLoan = Number(f?.CustomerLoan ?? f?.CustomerLoans ?? 0);
+        const prev = all && all[idx + 1];
+        const prevLoan = Number(prev?.financialValues?.CustomerLoan ?? prev?.financialValues?.CustomerLoans ?? 0);
+        if (!prevLoan) return null;
+        return (currentLoan - prevLoan) / prevLoan;
+      },
     },
     {
       label: "Nợ vay/VCSH",

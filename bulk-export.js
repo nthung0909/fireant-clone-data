@@ -18,7 +18,7 @@ if (typeof fetch !== "function") {
 }
 
 const STOCK_IDS = ["VNM", "VCB"];
-const FIREANT_TOKEN = ""; // Điền token của bạn vào đây
+const FIREANT_TOKEN = ""; // Điền token ở đây
 const STOCK_DELAY_MS = 5000;
 
 function delay(ms) {
@@ -34,6 +34,26 @@ function getExcelSections(isBank) {
     { label: "ROA", getValue: (f) => f.ROA, isPercent: true },
     { label: "ROE", getValue: (f) => f.ROE, isPercent: true },
     { label: "ROIC", getValue: (f) => f.ROIC, isPercent: true },
+    { label: "CAGR Doanh thu 3 năm", getValue: (f) => f.SaleGrowth_03Yr },
+    {
+      label: "CAGR LNST 3 năm",
+      getValue: (f) => f.ProfitAfterTaxGrowth_03Yr,
+      isPercent: true,
+    },
+    { label: "CAGR EPS 3 năm", getValue: (f) => f.BasicEPSGrowth_03Yr, isPercent: true },
+    { label: "CAGR Tài sản 3 năm", getValue: (f) => f.TotalAssetGrowth_03Yr, isPercent: true },
+    { label: "CAGR Vốn chủ 3 năm", getValue: (f) => f.EquityGrowth_03Yr, isPercent: true },
+    {
+      label: "Tăng trưởng tín dụng",
+      isPercent: true,
+      getValue: (f, isBank, idx, allItems) => {
+        const currentLoan = Number(f?.CustomerLoan ?? f?.CustomerLoans ?? 0);
+        const prevItem = allItems && allItems[idx + 1];
+        const prevLoan = Number(prevItem?.financialValues?.CustomerLoan ?? prevItem?.financialValues?.CustomerLoans ?? 0);
+        if (!prevLoan) return null;
+        return (currentLoan - prevLoan) / prevLoan;
+      },
+    },
     {
       label: "Nợ vay/VCSH",
       getValue: (f) => {
@@ -293,8 +313,10 @@ function buildSheet(workbook, section, sortedData, isQuarter, isBank) {
     if (rowConfig.hideForBank && isBank) return;
     const rowValues = [rowConfig.label];
 
-    sortedData.forEach((item) => {
-      const rawValue = rowConfig.getValue(item.financialValues, isBank);
+    sortedData.forEach((item, index) => {
+      const rawValue = rowConfig.getValue
+        ? rowConfig.getValue(item.financialValues, isBank, index, sortedData)
+        : rowConfig.getValue(item.financialValues, isBank);
       let value = rawValue;
       const numericValue = Number(rawValue);
       if (Number.isFinite(numericValue)) {
